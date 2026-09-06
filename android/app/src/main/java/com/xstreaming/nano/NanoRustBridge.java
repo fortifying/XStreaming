@@ -26,6 +26,9 @@ public final class NanoRustBridge {
     private static final long VIDEO_RENDER_START_DELAY_NS = 8_000_000L;
     private static final long VIDEO_RENDER_MAX_FUTURE_NS = 35_000_000L;
     private static final long VIDEO_RENDER_LATE_THRESHOLD_NS = 12_000_000L;
+    private static final int AUDIO_TARGET_BUFFER_MS = 30;
+    private static final int AUDIO_BACKLOG_DROP_THRESHOLD_MS = 120;
+    private static final int AUDIO_BACKLOG_TARGET_MS = 60;
     public interface RumbleListener {
         void onRumble(
                 double startDelay,
@@ -83,6 +86,10 @@ public final class NanoRustBridge {
     private int audioChannelCount = 2;
     private long queuedAudioFrameCount = 0L;
     private long decodedAudioBufferCount = 0L;
+    private long writtenAudioFrames = 0L;
+    private long playbackHeadWrapCount = 0L;
+    private int lastPlaybackHeadPosition = 0;
+    private boolean audioThreadPrioritySet = false;
     private volatile String sessionStage = "";
     private volatile String sessionStatusText = "";
     private volatile boolean terminalSessionError = false;
@@ -368,6 +375,14 @@ public final class NanoRustBridge {
             return;
         }
         synchronized (audioDecoderLock) {
+            if (!audioThreadPrioritySet) {
+                try {
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
+                    audioThreadPrioritySet = true;
+                } catch (Throwable error) {
+                    Log.w(TAG, "Failed to elevate audio thread priority", error);
+                }
+            }
             if (sampleRate > 0 && channelCount > 0
                     && (sampleRate != audioSampleRate || channelCount != audioChannelCount)) {
                 audioSampleRate = sampleRate;
@@ -846,10 +861,13 @@ public final class NanoRustBridge {
                     audioSampleRate,
                     channelConfig,
                     AudioFormat.ENCODING_PCM_16BIT);
-            int bufferSize = Math.max(minBufferSize, audioSampleRate * audioChannelCount * 2 / 10);
+            int targetBufferSize = Math.max(
+                    1,
+                    (audioSampleRate * audioChannelCount * 2 * AUDIO_TARGET_BUFFER_MS) / 1000);
+            int bufferSize = Math.max(minBufferSize, targetBufferSize);
             AudioTrack track;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                track = new AudioTrack.Builder()
+                AudioTrack.Builder builder = new AudioTrack.Builder()
                         .setAudioAttributes(new AudioAttributes.Builder()
                                 .setUsage(AudioAttributes.USAGE_GAME)
                                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -860,8 +878,12 @@ public final class NanoRustBridge {
                                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                                 .build())
                         .setTransferMode(AudioTrack.MODE_STREAM)
-                        .setBufferSizeInBytes(bufferSize)
-                        .build();
+                        .setBufferSizeInBytes(bufferSize);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    // Request Android's low-latency mixer path when available to reduce output delay.
+                    builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY);
+                }
+                track = builder.build();
             } else {
                 track = new AudioTrack(
                         AudioManager.STREAM_MUSIC,
@@ -896,6 +918,10 @@ public final class NanoRustBridge {
         audioTrack = null;
         queuedAudioFrameCount = 0L;
         decodedAudioBufferCount = 0L;
+        writtenAudioFrames = 0L;
+        playbackHeadWrapCount = 0L;
+        lastPlaybackHeadPosition = 0;
+        audioThreadPrioritySet = false;
         if (codec != null) {
             Log.i(TAG, "release audio decoder");
             try {
@@ -962,6 +988,18 @@ public final class NanoRustBridge {
                 if (outputBuffer != null && bufferInfo.size > 0) {
                     outputBuffer.position(bufferInfo.offset);
                     outputBuffer.limit(bufferInfo.offset + bufferInfo.size);
+                    int bytesPerFrame = Math.max(1, audioChannelCount * 2);
+                    long queuedFrames = Math.max(0L, bufferInfo.size / bytesPerFrame);
+                    long backlogFrames = getPendingAudioFrames(track);
+                    if (backlogFrames > millisToAudioFrames(AUDIO_BACKLOG_DROP_THRESHOLD_MS)) {
+                        // If audio gets too far behind realtime, drop stale decoded PCM instead of
+                        // keeping a long-lived queue that makes speech/audio feel delayed.
+                        Log.w(TAG, "dropping stale audio buffer backlogFrames=" + backlogFrames
+                                + " queuedFrames=" + queuedFrames
+                                + " ptsUs=" + bufferInfo.presentationTimeUs);
+                        codec.releaseOutputBuffer(outputIndex, false);
+                        continue;
+                    }
                     int written;
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         written = track.write(outputBuffer, bufferInfo.size, AudioTrack.WRITE_BLOCKING);
@@ -970,6 +1008,10 @@ public final class NanoRustBridge {
                         outputBuffer.get(pcm);
                         written = track.write(pcm, 0, pcm.length);
                     }
+                    if (written > 0) {
+                        writtenAudioFrames += (written / bytesPerFrame);
+                    }
+                    trimAudioBacklog(track);
                     decodedAudioBufferCount += 1;
                     if (decodedAudioBufferCount == 1 || decodedAudioBufferCount % 300 == 0) {
                         Log.i(TAG, "audio pcm written count=" + decodedAudioBufferCount
@@ -978,6 +1020,7 @@ public final class NanoRustBridge {
                                 + " ptsUs=" + bufferInfo.presentationTimeUs);
                     }
                 }
+
                 codec.releaseOutputBuffer(outputIndex, false);
             } catch (Throwable error) {
                 Log.w(TAG, "Audio decoder output failed", error);
@@ -985,6 +1028,39 @@ public final class NanoRustBridge {
                 return;
             }
         }
+    }
+
+    private long getPendingAudioFrames(AudioTrack track) {
+        int head = track.getPlaybackHeadPosition();
+        if (head < lastPlaybackHeadPosition) {
+            playbackHeadWrapCount += 1;
+        }
+        lastPlaybackHeadPosition = head;
+        long playedFrames = (playbackHeadWrapCount << 32) + (head & 0xFFFFFFFFL);
+        return Math.max(0L, writtenAudioFrames - playedFrames);
+    }
+
+    private void trimAudioBacklog(AudioTrack track) {
+        long backlogFrames = getPendingAudioFrames(track);
+        if (backlogFrames <= millisToAudioFrames(AUDIO_BACKLOG_DROP_THRESHOLD_MS)) {
+            return;
+        }
+        try {
+            track.pause();
+            track.flush();
+            track.play();
+            writtenAudioFrames = 0L;
+            playbackHeadWrapCount = 0L;
+            lastPlaybackHeadPosition = 0;
+            Log.w(TAG, "trimmed audio backlog frames=" + backlogFrames
+                    + " targetFrames=" + millisToAudioFrames(AUDIO_BACKLOG_TARGET_MS));
+        } catch (Throwable error) {
+            Log.w(TAG, "failed to trim audio backlog", error);
+        }
+    }
+
+    private long millisToAudioFrames(int millis) {
+        return Math.max(1L, (audioSampleRate * (long) millis) / 1000L);
     }
 
     private static void applyOpusCodecSpecificData(MediaFormat format, int sampleRate, int channelCount) {
