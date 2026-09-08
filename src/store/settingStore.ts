@@ -43,6 +43,7 @@ export type Settings = {
   codec: string;
   show_performance: boolean;
   performance_style: boolean;
+  performance_opacity: number;
   vibration: boolean;
   vibration_mode: string;
   native_touch: boolean;
@@ -124,6 +125,7 @@ const defaultSettings: Settings = {
   codec: '',
   show_performance: false,
   performance_style: true,
+  performance_opacity: 0.7,
   vibration: true,
   vibration_mode: 'Native',
   native_touch: false,
