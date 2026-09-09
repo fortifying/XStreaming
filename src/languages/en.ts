@@ -597,5 +597,8 @@ export default {
     Decode: 'Decode',
     Network: 'Network',
     Done: 'Done',
+    Navigate: 'Navigate',
+    'Direct Play': 'Play',
+    Sort: 'Sort',
   },
 };
