@@ -147,6 +147,10 @@ function SettingsScreen({navigation}) {
     bases.forEach(meta => {
       list.push(() => handleItemPress(meta.name));
     });
+    // xcloud
+    xcloud.forEach(meta => {
+      list.push(() => handleItemPress(meta.name));
+    });
     // display
     display.forEach(meta => {
       list.push(() => handleItemPress(meta.name));
@@ -186,10 +190,6 @@ function SettingsScreen({navigation}) {
     });
     // audio
     audio.forEach(meta => {
-      list.push(() => handleItemPress(meta.name));
-    });
-    // xcloud
-    xcloud.forEach(meta => {
       list.push(() => handleItemPress(meta.name));
     });
     // xhome
@@ -353,6 +353,23 @@ function SettingsScreen({navigation}) {
           )}
         </React.Fragment>
 
+        <React.Fragment key="xcloud">
+          <View style={styles.contentTitle}>
+            <Text variant="titleLarge" style={titleTextStyle}>
+              ☁️ {t('XcloudSettings')}
+            </Text>
+          </View>
+
+          {xcloud.map((meta, idx) =>
+            renderItem(
+              meta.title,
+              meta.description,
+              () => handleItemPress(meta.name),
+              meta.name || idx,
+            ),
+          )}
+        </React.Fragment>
+
         <React.Fragment key="display">
           <View style={styles.contentTitle}>
             <Text variant="titleLarge" style={titleTextStyle}>
@@ -467,23 +484,6 @@ function SettingsScreen({navigation}) {
           </View>
 
           {audio.map((meta, idx) =>
-            renderItem(
-              meta.title,
-              meta.description,
-              () => handleItemPress(meta.name),
-              meta.name || idx,
-            ),
-          )}
-        </React.Fragment>
-
-        <React.Fragment key="xcloud">
-          <View style={styles.contentTitle}>
-            <Text variant="titleLarge" style={titleTextStyle}>
-              ☁️ {t('XcloudSettings')}
-            </Text>
-          </View>
-
-          {xcloud.map((meta, idx) =>
             renderItem(
               meta.title,
               meta.description,
