@@ -423,5 +423,12 @@ export default {
     'Configure one continuous macro chain. Steps execute from top to bottom when pressing macro button.': 'Configura una cadena continua.',
     'Macro switch is in Settings -> Virtual macro button. This page only edits the action sequence.': 'El interruptor está en Ajustes.',
     'Enable macro button and edit its action sequence in one place.': 'Configura y edita macros.',
+    'Play with Game Pass': 'Juega con Game Pass',
+    'Stream for free with ads': 'Transmite gratis con anuncios',
+    StreamForFreeWithAdsDesc:
+      'Por tiempo limitado, juega títulos seleccionados gratis en la nube. Aplican términos y límites de sesión.',
+    'Preview features': 'Funciones de versión preliminar (Xbox Insider)',
+    'Preview features description':
+      'Habilita funciones de vista previa de Xbox Insider, como transmisión gratuita con anuncios',
   },
 };

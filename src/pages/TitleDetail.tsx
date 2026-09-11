@@ -22,34 +22,36 @@ import {
   useTheme,
 } from 'react-native-paper';
 import Spinner from '../components/Spinner';
-import {useDispatch} from 'react-redux';
-import {getSettings} from '../store/settingStore';
-import {getXcloudData, saveXcloudData} from '../store/xcloudStore';
+import { useDispatch } from 'react-redux';
+import { getSettings } from '../store/settingStore';
+import { getXcloudData, saveXcloudData } from '../store/xcloudStore';
 import {
   findTitleByProductId,
   getTitleProductId,
   getTitleStreamingId,
   saveTitleShortcutSnapshot,
 } from '../store/shortcutStore';
-import {useTranslation} from 'react-i18next';
-import {useIsFocused} from '@react-navigation/native';
-import {useGamepadNavigation} from '../utils/useGamepadNavigation';
-import {debugFactory} from '../utils/debug';
+import { useTranslation } from 'react-i18next';
+import { useIsFocused } from '@react-navigation/native';
+import { useGamepadNavigation } from '../utils/useGamepadNavigation';
+import { debugFactory } from '../utils/debug';
+import { storage } from '../store/mmkv';
+import { isFreeWithAdsTitle } from '../utils/xcloud';
 import games from '../mock/games.json';
 
-const {UsbRumbleManager, FullScreenManager, ShortcutManager} = NativeModules;
+const { UsbRumbleManager, FullScreenManager, ShortcutManager } = NativeModules;
 
 const log = debugFactory('TitleDetailScreen');
 
 const warnTitles: any = [];
 const webviewTitles: any = [];
 
-function TitleDetail({navigation, route}) {
-  const {t} = useTranslation();
+function TitleDetail({ navigation, route }) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isLight = !theme.dark;
   const primary = theme.colors.primary;
-  const {width: screenWidth, height: screenHeight} = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const dispatch = useDispatch();
   const [titleItem, setTitleItem] = React.useState<any>(null);
   const [settings, setSettings] = React.useState<any>({});
@@ -214,7 +216,7 @@ function TitleDetail({navigation, route}) {
           onDismiss={() => {
             setShowUsbWarnShowModal(false);
           }}
-          contentContainerStyle={{marginLeft: '4%', marginRight: '4%'}}>
+          contentContainerStyle={{ marginLeft: '4%', marginRight: '4%' }}>
           <Card>
             <Card.Content>
               <Text>
@@ -282,8 +284,8 @@ function TitleDetail({navigation, route}) {
     const iconUrl = titleItem.Image_Tile?.URL
       ? `https:${titleItem.Image_Tile.URL}`
       : titleItem.Image_Poster?.URL
-      ? `https:${titleItem.Image_Poster.URL}`
-      : '';
+        ? `https:${titleItem.Image_Poster.URL}`
+        : '';
 
     saveTitleShortcutSnapshot(titleItem);
 
@@ -299,7 +301,7 @@ function TitleDetail({navigation, route}) {
     } catch (e: any) {
       const message =
         e?.code === 'SHORTCUT_UNSUPPORTED' ||
-        e?.code === 'UNSUPPORTED_ANDROID_VERSION'
+          e?.code === 'UNSUPPORTED_ANDROID_VERSION'
           ? t('TitleShortcutUnavailable')
           : `${t('TitleShortcutFailed')}: ${e?.message || e}`;
       Alert.alert(t('Warning'), message);
@@ -340,13 +342,13 @@ function TitleDetail({navigation, route}) {
         focusable={true}
         hasTVPreferredFocus={isPrimaryAction}
         onPress={onPress}
-        style={({focused, pressed}: any) => {
+        style={({ focused, pressed }: any) => {
           const activeFocus = isFocused || focused;
           return [
             styles.tvActionButton,
             isPrimaryAction
-              ? [styles.tvActionButtonPrimary, {backgroundColor: primary, borderColor: primary}]
-              : [styles.tvActionButtonPlain, {borderColor: primary + '66'}],
+              ? [styles.tvActionButtonPrimary, { backgroundColor: primary, borderColor: primary }]
+              : [styles.tvActionButtonPlain, { borderColor: primary + '66' }],
             activeFocus && styles.tvActionButtonFocused,
             pressed && styles.tvActionButtonPressed,
           ];
@@ -356,13 +358,21 @@ function TitleDetail({navigation, route}) {
             styles.tvActionButtonText,
             isPrimaryAction
               ? styles.tvActionButtonTextPrimary
-              : [styles.tvActionButtonTextPlain, {color: primary}],
+              : [styles.tvActionButtonTextPlain, { color: primary }],
           ]}>
           {label}
         </Text>
       </Pressable>
     );
   };
+
+  const isFreeWithAds = React.useMemo(() => {
+    return isFreeWithAdsTitle(titleItem);
+  }, [titleItem]);
+
+  const startButtonLabel = isFreeWithAds
+    ? t('Start cloud game with ads')
+    : t('Start game');
 
   const renderActionBar = () => {
     return (
@@ -380,7 +390,7 @@ function TitleDetail({navigation, route}) {
         {isLargeScreen ? (
           <>
             {renderLargeActionButton(
-              t('Start game'),
+              startButtonLabel,
               handleStartGame,
               true,
               focusedBtn === 'start',
@@ -401,7 +411,7 @@ function TitleDetail({navigation, route}) {
                 focusedBtn === 'start' && styles.buttonFocused,
               ]}
               onPress={handleStartGame}>
-              &nbsp;{t('Start game')} &nbsp;
+              &nbsp;{startButtonLabel} &nbsp;
             </Button>
             <Button
               mode={focusedBtn === 'back' ? 'elevated' : 'text'}
@@ -670,7 +680,7 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 10,
-    transform: [{scale: 1}],
+    transform: [{ scale: 1 }],
   },
   buttonLarge: {
     minWidth: 150,
@@ -680,7 +690,7 @@ const styles = StyleSheet.create({
   tvActionButton: {
     minWidth: 150,
     height: 42,
-    transform: [{scale: 1}],
+    transform: [{ scale: 1 }],
     borderRadius: 8,
     marginRight: 12,
     paddingHorizontal: 18,
@@ -700,13 +710,13 @@ const styles = StyleSheet.create({
   buttonFocused: {
     borderColor: '#FFFFFF',
     borderWidth: 2,
-    transform: [{scale: 1.04}],
+    transform: [{ scale: 1.04 }],
     elevation: 8,
   },
   tvActionButtonFocused: {
     borderColor: '#FFFFFF',
     borderWidth: 3,
-    transform: [{scale: 1.05}],
+    transform: [{ scale: 1.05 }],
     elevation: 8,
     shadowColor: '#FFFFFF',
     shadowOpacity: 0.6,

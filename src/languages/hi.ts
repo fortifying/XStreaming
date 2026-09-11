@@ -482,5 +482,12 @@ export default {
       'मैक्रो स्विच सेटिंग्स में है।',
     'Enable macro button and edit its action sequence in one place.':
       'एक ही जगह से मैक्रो सेट करें।',
+    'Play with Game Pass': 'Game Pass के साथ खेलें',
+    'Stream for free with ads': 'विज्ञापनों के साथ मुफ्त में स्ट्रीम करें',
+    StreamForFreeWithAdsDesc:
+      'सीमित समय के लिए, क्लाउड गेमिंग के साथ चुनिंदा गेम मुफ्त में खेलें। नियम और सत्र सीमाएं लागू हैं।',
+    'Preview features': 'पूर्वावलोकन सुविधाएं (Xbox Insider)',
+    'Preview features description':
+      'Xbox Insider पूर्वावलोकन सुविधाएं सक्षम करें, जैसे विज्ञापनों के साथ मुफ्त क्लाउड स्ट्रीमिंग',
   },
 };

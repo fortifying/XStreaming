@@ -558,6 +558,13 @@ export default {
     'Cloud Server': 'Server Cloud',
     Favorites: 'Favorit',
     'Play with Game Pass': 'Mainkan dengan Game Pass',
+    'Stream for free with ads': 'Streaming gratis dengan iklan',
+    'Start cloud game with ads': 'Mulai cloud game dengan iklan',
+    StreamForFreeWithAdsDesc:
+      'Hanya untuk waktu terbatas, mainkan game pilihan secara gratis melalui cloud gaming. Syarat dan batas sesi berlaku.',
+    'Preview features': 'Fitur pratinjau (Xbox Insider)',
+    'Preview features description':
+      'Aktifkan fitur pratinjau Xbox Insider, seperti streaming cloud gratis dengan iklan',
     'Recently Added': 'Baru ditambahkan',
     'Ubisoft+ Classic': 'Ubisoft+ Classic',
     'Stream your own game': 'Stream game milik Anda',

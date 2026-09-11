@@ -552,6 +552,12 @@ export default {
     'Cloud Server': 'Cloud Server',
     Favorites: 'Favorites',
     'Play with Game Pass': 'Play with Game Pass',
+    'Stream for free with ads': 'Stream for free with ads',
+    StreamForFreeWithAdsDesc:
+      'For a limited time only, play select games for free with cloud gaming. Terms and session limits apply.',
+    'Preview features': 'Preview features (Xbox Insider)',
+    'Preview features description':
+      'Enable Xbox Insider preview features, such as ad-supported free cloud gaming stream',
     'Recently Added': 'Recently Added',
     'Ubisoft+ Classic': 'Ubisoft+ Classic',
     'Stream your own game': 'Stream your own game',
