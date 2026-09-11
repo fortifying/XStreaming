@@ -523,6 +523,11 @@ export default {
     'Cloud Server': '云游戏服务器',
     Favorites: '收藏',
     'Play with Game Pass': '畅玩 Game Pass',
+    'Stream for free with ads': '观看广告免费畅玩',
+    StreamForFreeWithAdsDesc:
+      '限时体验，通过云游戏免费游玩精选游戏。适用条款和单次会话时长限制。',
+    'Preview features': '预览功能 (Xbox Insider)',
+    'Preview features description': '启用 Xbox Insider 预览功能（如含广告的免费云游戏串流）',
     'Recently Added': '最新添加',
     'Ubisoft+ Classic': 'Ubisoft+ 经典',
     'Stream your own game': '串流你拥有的游戏',

@@ -489,6 +489,12 @@ export default {
     'Enable macro button and edit its action sequence in one place.':
       '在同一頁面中啟用巨集按鍵並編輯動作序列。',
     'Find games': '搜尋遊戲',
+    'Play with Game Pass': '暢玩 Game Pass',
+    'Stream for free with ads': '觀看廣告免費暢玩',
+    StreamForFreeWithAdsDesc:
+      '限時體驗，透過雲端遊戲免費遊玩精選遊戲。適用條款與單次工作階段時長限制。',
+    'Preview features': '預覽功能 (Xbox Insider)',
+    'Preview features description': '啟用 Xbox Insider 預覽功能（如含廣告的免費雲端遊戲串流）',
     'Session report': '會話報告',
     'Show session report after exiting game stream': '結束遊戲串流後顯示會話報告',
     'Stream speed': '串流速率',
