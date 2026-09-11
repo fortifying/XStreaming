@@ -492,6 +492,9 @@ export default {
     'Play with Game Pass': '暢玩 Game Pass',
     'Stream for free with ads': '觀看廣告免費暢玩',
     'Get game': '獲取遊戲',
+    'Load more': '載入更多',
+    available: '個可用',
+    'Game available': '個遊戲可用',
     StreamForFreeWithAdsDesc:
       '限時體驗，透過雲端遊戲免費遊玩精選遊戲。適用條款與單次工作階段時長限制。',
     'Preview features': '預覽功能 (Xbox Insider)',

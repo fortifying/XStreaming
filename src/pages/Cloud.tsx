@@ -1063,7 +1063,7 @@ function CloudScreen({ navigation, route }: any) {
 
   const horizontalCardWidth = isLandscape ? 120 : isLargeScreen ? 140 : 124;
   const horizontalCardHeight = Math.round(horizontalCardWidth * 1.38);
-  const pageSize = isLargeScreen ? 36 : 24;
+  const pageSize = 12;
 
   // Resolved user Gamertag
   const gamertag = React.useMemo(() => {
@@ -1711,8 +1711,9 @@ function CloudScreen({ navigation, route }: any) {
 
   // Available sections list for controller navigation
   const availableSections = React.useMemo(() => {
+    const hasMoreGrid = currentPage < totalPages;
     if (filterCategory !== 'all' || keyword.length > 0) {
-      return [{ id: 'grid', data: pagedTitles, hasMore: false }];
+      return [{ id: 'grid', data: pagedTitles, hasMore: hasMoreGrid }];
     }
     const maxItems = Platform.isTV ? 6 : 10;
     const list: {
@@ -1778,7 +1779,7 @@ function CloudScreen({ navigation, route }: any) {
       });
     }
     if (pagedTitles.length > 0) {
-      list.push({ id: 'grid', data: pagedTitles, hasMore: false });
+      list.push({ id: 'grid', data: pagedTitles, hasMore: hasMoreGrid });
     }
     return list;
   }, [
@@ -1794,6 +1795,8 @@ function CloudScreen({ navigation, route }: any) {
     streamYourOwnTitles,
     leavingSoonList,
     pagedTitles,
+    currentPage,
+    totalPages,
   ]);
 
   // Available header items depending on current view
@@ -2168,6 +2171,9 @@ function CloudScreen({ navigation, route }: any) {
               animated: true,
             });
           }
+        } else if (curSec.hasMore && focusedIndex < curSec.data.length) {
+          setFocusedIndex(curSec.data.length);
+          flatListRef.current?.scrollToEnd?.({ animated: true });
         }
       } else {
         if (curSecIdx < availableSections.length - 1) {
@@ -2246,6 +2252,17 @@ function CloudScreen({ navigation, route }: any) {
       const currentScrollY = currentScrollOffsetRef.current || 0;
 
       if (focusedSection === 'grid') {
+        const curSec = availableSections[curSecIdx];
+        if (curSec && focusedIndex === curSec.data.length) {
+          const lastRowStart =
+            Math.floor((curSec.data.length - 1) / numColumns) * numColumns;
+          const targetCol = Math.min(
+            curSec.data.length - 1,
+            lastRowStart + (numColumns > 1 ? 1 : 0),
+          );
+          setFocusedIndex(Math.max(0, targetCol));
+          return;
+        }
         if (focusedIndex >= numColumns) {
           const prevGridIdx = focusedIndex - numColumns;
           setFocusedIndex(prevGridIdx);
@@ -2701,18 +2718,73 @@ function CloudScreen({ navigation, route }: any) {
     }
   }, [filterCategory, t]);
 
-  // Footer loading indicator
-  const renderListFooter = () => (
-    <View style={styles.footerWrap}>
-      {loadingMore && (
-        <ActivityIndicator
-          size="small"
-          color={primary}
-          style={styles.loadingIndicator}
-        />
-      )}
-    </View>
-  );
+  // Footer loading indicator & Load more button
+  const renderListFooter = () => {
+    if (!pagedTitles.length) return null;
+
+    const hasMore = currentPage < totalPages;
+    const isLoadMoreFocused =
+      isGamepadActive &&
+      focusedSection === 'grid' &&
+      focusedIndex === pagedTitles.length;
+
+    return (
+      <View style={styles.footerWrap}>
+        {hasMore ? (
+          <Pressable
+            focusable={true}
+            onPress={loadMoreData}
+            style={({ pressed, focused }: any) => [
+              styles.loadMoreButton,
+              isLight && styles.loadMoreButtonLight,
+              {
+                backgroundColor: isLight
+                  ? 'rgba(0, 0, 0, 0.05)'
+                  : 'rgba(255, 255, 255, 0.08)',
+                borderColor: primary + '55',
+              },
+              (isLoadMoreFocused || focused) && [
+                styles.loadMoreButtonFocused,
+                { borderColor: isLight ? primary : '#FFFFFF' },
+              ],
+              pressed && { opacity: 0.7 },
+            ]}>
+            {loadingMore ? (
+              <ActivityIndicator size="small" color={primary} />
+            ) : (
+              <View style={styles.loadMoreContent}>
+                <Icon source="chevron-down" size={20} color={primary} />
+                <Text
+                  style={[
+                    styles.loadMoreText,
+                    { color: isLight ? '#1F2937' : '#FFFFFF' },
+                  ]}>
+                  {t('Load more')}
+                </Text>
+                <Text
+                  style={[
+                    styles.loadMoreCountText,
+                    { color: isLight ? '#6B7280' : '#9CA3AF' },
+                  ]}>
+                  {`(${pagedTitles.length} / ${filteredTitles.length})`}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        ) : (
+          filteredTitles.length > 12 && (
+            <Text
+              style={[
+                styles.allLoadedText,
+                { color: isLight ? '#6B7280' : '#9CA3AF' },
+              ]}>
+              {`${filteredTitles.length} ${t('Game available')}`}
+            </Text>
+          )
+        )}
+      </View>
+    );
+  };
 
   const isRegionFocused =
     isGamepadActive &&
@@ -3118,7 +3190,7 @@ function CloudScreen({ navigation, route }: any) {
                         styles.countText,
                         isLight && styles.countTextLight,
                       ]}>
-                      {`${filteredTitles.length} ${t('available')}`}
+                      {`${filteredTitles.length} ${t('Game available')}`}
                     </Text>
                   </View>
                 </View>
@@ -3172,7 +3244,7 @@ function CloudScreen({ navigation, route }: any) {
                     styles.categoryCountText,
                     isLight && styles.categoryCountTextLight,
                   ]}>
-                  {`${filteredTitles.length} ${t('available')}`}
+                  {`${filteredTitles.length} ${t('Game available')}`}
                 </Text>
               </View>
 
@@ -3302,7 +3374,7 @@ function CloudScreen({ navigation, route }: any) {
                       styles.countText,
                       isLight && styles.countTextLight,
                     ]}>
-                    {`${filteredTitles.length} ${t('available')}`}
+                    {`${filteredTitles.length} ${t('Game available')}`}
                   </Text>
                 </View>
               </View>
@@ -3343,8 +3415,7 @@ function CloudScreen({ navigation, route }: any) {
                 currentScrollOffsetRef.current = e.nativeEvent.contentOffset.y;
               }}
               scrollEventThrottle={48}
-              extraData={`${primary}_${isLight}_${isLandscape}_${isGamepadActive}_${shouldHidePlayButton}_${focusedSection === 'grid' ? focusedIndex : ''
-                }`}
+              extraData={`${primary}_${isLight}_${isLandscape}_${isGamepadActive}_${shouldHidePlayButton}_${focusedSection === 'grid' ? focusedIndex : ''}_${currentPage}_${loadingMore}`}
               numColumns={numColumns}
               keyExtractor={itemKeyExtractor}
               columnWrapperStyle={styles.columnWrapper}
@@ -3369,8 +3440,6 @@ function CloudScreen({ navigation, route }: any) {
                   });
                 } catch (e) { }
               }}
-              onEndReached={loadMoreData}
-              onEndReachedThreshold={0.2}
               ListFooterComponent={renderListFooter}
             />
           )}
@@ -4088,6 +4157,49 @@ const styles = StyleSheet.create({
   },
   footerWrap: {
     alignItems: 'center',
+    paddingVertical: 12,
+  },
+  loadMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginVertical: 18,
+    alignSelf: 'center',
+    minWidth: 200,
+  },
+  loadMoreButtonLight: {
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+  },
+  loadMoreButtonFocused: {
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+    transform: [{ scale: 1.04 }],
+    elevation: 6,
+  },
+  loadMoreContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 6,
+    marginRight: 6,
+  },
+  loadMoreCountText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  allLoadedText: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginVertical: 16,
+    fontWeight: '500',
   },
   loadingIndicator: {
     paddingVertical: 14,

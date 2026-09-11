@@ -466,6 +466,9 @@ export default {
     'Play with Game Pass': 'Game Pass로 플레이',
     'Stream for free with ads': '광고 시청 후 무료 스트리밍',
     'Get game': '게임 받기',
+    'Load more': '더 보기',
+    available: '개 이용 가능',
+    'Game available': '개 게임 이용 가능',
     StreamForFreeWithAdsDesc:
       '기간 한정으로 클라우드 게이밍을 통해 엄선된 게임을 무료로 플레이할 수 있습니다. 약관 및 세션 제한이 적용됩니다.',
     'Preview features': '미리 보기 기능 (Xbox Insider)',

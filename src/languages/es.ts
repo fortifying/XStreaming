@@ -426,6 +426,9 @@ export default {
     'Play with Game Pass': 'Juega con Game Pass',
     'Stream for free with ads': 'Transmite gratis con anuncios',
     'Get game': 'Obtener juego',
+    'Load more': 'Cargar más',
+    available: 'disponible',
+    'Game available': 'Juegos disponibles',
     StreamForFreeWithAdsDesc:
       'Por tiempo limitado, juega títulos seleccionados gratis en la nube. Aplican términos y límites de sesión.',
     'Preview features': 'Funciones de versión preliminar (Xbox Insider)',
