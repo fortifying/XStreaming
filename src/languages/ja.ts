@@ -469,6 +469,7 @@ export default {
       'マクロ設定',
     'Play with Game Pass': 'Game Pass でプレイ',
     'Stream for free with ads': '広告付きで無料ストリーミング',
+    'Get game': 'ゲームを入手',
     StreamForFreeWithAdsDesc:
       '期間限定で、クラウドゲームを通じて厳選されたゲームを無料でプレイできます。利用規約とセッション制限が適用されます。',
     'Preview features': 'プレビュー機能 (Xbox Insider)',

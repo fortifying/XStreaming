@@ -10,7 +10,11 @@ import {
   Pressable,
   ToastAndroid,
   useWindowDimensions,
+  ActivityIndicator,
+  Modal as RNModal,
+  StatusBar,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import {
   Text,
   Button,
@@ -67,17 +71,56 @@ function TitleDetail({ navigation, route }) {
     !!ShortcutManager?.addTitleShortcut;
 
   const isScreenFocused = useIsFocused();
-  const [focusedBtn, setFocusedBtn] = React.useState<'start' | 'back'>('start');
+  const [focusedBtn, setFocusedBtn] = React.useState<'start' | 'buy' | 'back'>('start');
+  const [showStoreModal, setShowStoreModal] = React.useState(false);
+  const [storeUrl, setStoreUrl] = React.useState('');
+  const [storeCanGoBack, setStoreCanGoBack] = React.useState(false);
+  const storeWebViewRef = React.useRef<any>(null);
+
+  const isGameOwned = Boolean(
+    titleItem?.details?.hasEntitlement || titleItem?.details?.isFreeInStore,
+  );
+  const isNotOwned = Boolean(
+    titleItem &&
+      titleItem.details &&
+      !isGameOwned,
+  );
 
   useGamepadNavigation({
     enabled: isScreenFocused && !showUsbWarnModal && !!titleItem,
-    onLeft: () => setFocusedBtn('start'),
-    onRight: () => setFocusedBtn('back'),
-    onUp: () => setFocusedBtn('start'),
-    onDown: () => setFocusedBtn('back'),
+    onLeft: () => {
+      setFocusedBtn(prev => {
+        if (prev === 'back') return isNotOwned ? 'buy' : 'start';
+        if (prev === 'buy') return 'start';
+        return 'start';
+      });
+    },
+    onRight: () => {
+      setFocusedBtn(prev => {
+        if (prev === 'start') return isNotOwned ? 'buy' : 'back';
+        if (prev === 'buy') return 'back';
+        return 'back';
+      });
+    },
+    onUp: () => {
+      setFocusedBtn(prev => {
+        if (prev === 'back') return isNotOwned ? 'buy' : 'start';
+        if (prev === 'buy') return 'start';
+        return 'start';
+      });
+    },
+    onDown: () => {
+      setFocusedBtn(prev => {
+        if (prev === 'start') return isNotOwned ? 'buy' : 'back';
+        if (prev === 'buy') return 'back';
+        return 'back';
+      });
+    },
     onSelect: () => {
       if (focusedBtn === 'start') {
         handleStartGame();
+      } else if (focusedBtn === 'buy' && isNotOwned) {
+        handleBuyGame();
       } else {
         navigation.goBack();
       }
@@ -86,6 +129,14 @@ function TitleDetail({ navigation, route }) {
       handleStartGame();
     },
     onBack: () => {
+      if (showStoreModal) {
+        if (storeCanGoBack && storeWebViewRef.current) {
+          storeWebViewRef.current.goBack();
+        } else {
+          setShowStoreModal(false);
+        }
+        return;
+      }
       navigation.goBack();
     },
   });
@@ -308,6 +359,27 @@ function TitleDetail({ navigation, route }) {
     }
   };
 
+  const handleBuyGame = () => {
+    const productId =
+      getTitleProductId(titleItem) ||
+      titleItem?.details?.productId ||
+      titleItem?.details?.ProductId ||
+      titleItem?.ProductId ||
+      titleItem?.productId;
+    let url = '';
+    if (productId) {
+      url = `https://www.xbox.com/games/store/p/${productId}`;
+    } else if (titleItem?.ProductTitle) {
+      url = `https://www.xbox.com/games/search?q=${encodeURIComponent(
+        titleItem.ProductTitle,
+      )}`;
+    }
+    if (url) {
+      setStoreUrl(url);
+      setShowStoreModal(true);
+    }
+  };
+
   let isByorg = false;
   if (titleItem && titleItem.details && !titleItem.details.hasEntitlement) {
     isByorg = true;
@@ -374,6 +446,90 @@ function TitleDetail({ navigation, route }) {
     ? t('Start cloud game with ads')
     : t('Start game');
 
+  const buyButtonLabel = t('Get game');
+
+  const statusBarHeight =
+    Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 0;
+
+  const renderStoreModal = () => {
+    if (!showStoreModal || !storeUrl) {
+      return null;
+    }
+    return (
+      <RNModal
+        visible={showStoreModal}
+        animationType="slide"
+        statusBarTranslucent={true}
+        onRequestClose={() => {
+          if (storeCanGoBack && storeWebViewRef.current) {
+            storeWebViewRef.current.goBack();
+          } else {
+            setShowStoreModal(false);
+          }
+        }}>
+        <StatusBar
+          barStyle={isLight ? 'dark-content' : 'light-content'}
+          backgroundColor="transparent"
+          translucent={true}
+        />
+        <View
+          style={[
+            styles.storeModalContainer,
+            {
+              backgroundColor: theme.colors.background,
+              paddingTop: statusBarHeight,
+            },
+          ]}>
+          <View
+            style={[
+              styles.storeModalHeader,
+              { borderBottomColor: primary + '33' },
+            ]}>
+            <IconButton
+              icon="arrow-left"
+              size={24}
+              onPress={() => {
+                if (storeCanGoBack && storeWebViewRef.current) {
+                  storeWebViewRef.current.goBack();
+                } else {
+                  setShowStoreModal(false);
+                }
+              }}
+            />
+            <Text
+              variant="titleMedium"
+              numberOfLines={1}
+              style={styles.storeModalTitle}>
+              {titleItem?.ProductTitle || t('Get game')}
+            </Text>
+            <IconButton
+              icon="close"
+              size={24}
+              onPress={() => setShowStoreModal(false)}
+            />
+          </View>
+          <WebView
+            ref={storeWebViewRef}
+            source={{ uri: storeUrl }}
+            userAgent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            onNavigationStateChange={navState => {
+              setStoreCanGoBack(navState.canGoBack);
+            }}
+            renderLoading={() => (
+              <View style={styles.storeLoadingWrap}>
+                <ActivityIndicator size="large" color={primary} />
+              </View>
+            )}
+            style={styles.storeWebView}
+          />
+        </View>
+      </RNModal>
+    );
+  };
+
   const renderActionBar = () => {
     return (
       <View
@@ -395,6 +551,13 @@ function TitleDetail({ navigation, route }) {
               true,
               focusedBtn === 'start',
             )}
+            {isNotOwned &&
+              renderLargeActionButton(
+                buyButtonLabel,
+                handleBuyGame,
+                false,
+                focusedBtn === 'buy',
+              )}
             {renderLargeActionButton(
               t('Back'),
               () => navigation.goBack(),
@@ -413,6 +576,18 @@ function TitleDetail({ navigation, route }) {
               onPress={handleStartGame}>
               &nbsp;{startButtonLabel} &nbsp;
             </Button>
+            {isNotOwned && (
+              <Button
+                mode="outlined"
+                style={[
+                  styles.button,
+                  focusedBtn === 'buy' && styles.buttonFocused,
+                ]}
+                textColor={primary}
+                onPress={handleBuyGame}>
+                &nbsp;{buyButtonLabel} &nbsp;
+              </Button>
+            )}
             <Button
               mode={focusedBtn === 'back' ? 'elevated' : 'text'}
               style={[
@@ -436,6 +611,7 @@ function TitleDetail({ navigation, route }) {
       />
 
       {renderUsbWarningModal()}
+      {renderStoreModal()}
 
       {shortcutLoadFailed && (
         <View style={styles.errorWrap}>
@@ -736,6 +912,30 @@ const styles = StyleSheet.create({
   },
   tvActionButtonTextPlain: {
     color: '#107C10',
+  },
+  storeModalContainer: {
+    flex: 1,
+  },
+  storeModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+  },
+  storeModalTitle: {
+    flex: 1,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  storeWebView: {
+    flex: 1,
+  },
+  storeLoadingWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
 });
 
