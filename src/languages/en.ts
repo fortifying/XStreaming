@@ -553,6 +553,7 @@ export default {
     Favorites: 'Favorites',
     'Play with Game Pass': 'Play with Game Pass',
     'Stream for free with ads': 'Stream for free with ads',
+    'Get game': 'Get game',
     StreamForFreeWithAdsDesc:
       'For a limited time only, play select games for free with cloud gaming. Terms and session limits apply.',
     'Preview features': 'Preview features (Xbox Insider)',

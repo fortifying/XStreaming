@@ -534,6 +534,7 @@ export default {
       'Ative o botão macro e edite sua sequência de ações em um único lugar.',
     'Play with Game Pass': 'Jogar com Game Pass',
     'Stream for free with ads': 'Transmitir grátis com anúncios',
+    'Get game': 'Obter jogo',
     StreamForFreeWithAdsDesc:
       'Por tempo limitado, jogue títulos selecionados gratuitamente pelo cloud gaming. Termos e limites de sessão se aplicam.',
     'Preview features': 'Recursos de prévia (Xbox Insider)',

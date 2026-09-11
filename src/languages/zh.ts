@@ -524,6 +524,7 @@ export default {
     Favorites: '收藏',
     'Play with Game Pass': '畅玩 Game Pass',
     'Stream for free with ads': '观看广告免费畅玩',
+    'Get game': '获取游戏',
     StreamForFreeWithAdsDesc:
       '限时体验，通过云游戏免费游玩精选游戏。适用条款和单次会话时长限制。',
     'Preview features': '预览功能 (Xbox Insider)',

@@ -560,6 +560,7 @@ export default {
     'Play with Game Pass': 'Mainkan dengan Game Pass',
     'Stream for free with ads': 'Streaming gratis dengan iklan',
     'Start cloud game with ads': 'Mulai cloud game dengan iklan',
+    'Get game': 'Dapatkan game',
     StreamForFreeWithAdsDesc:
       'Hanya untuk waktu terbatas, mainkan game pilihan secara gratis melalui cloud gaming. Syarat dan batas sesi berlaku.',
     'Preview features': 'Fitur pratinjau (Xbox Insider)',
