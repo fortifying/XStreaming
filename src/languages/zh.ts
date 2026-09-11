@@ -514,6 +514,7 @@ export default {
     'Sort: Relevance': '排序: 相关度',
     Filters: '筛选',
     available: '个可用',
+    'Game available': '个游戏可用',
     Store: '商店',
     Library: '游戏库',
     Relevance: '相关度',
@@ -525,6 +526,7 @@ export default {
     'Play with Game Pass': '畅玩 Game Pass',
     'Stream for free with ads': '观看广告免费畅玩',
     'Get game': '获取游戏',
+    'Load more': '加载更多',
     StreamForFreeWithAdsDesc:
       '限时体验，通过云游戏免费游玩精选游戏。适用条款和单次会话时长限制。',
     'Preview features': '预览功能 (Xbox Insider)',

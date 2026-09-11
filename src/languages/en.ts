@@ -543,6 +543,7 @@ export default {
     'Sort: Relevance': 'Sort: Relevance',
     Filters: 'Filters',
     available: 'available',
+    'Game available': 'Games available',
     Store: 'Store',
     Library: 'Library',
     Relevance: 'Relevance',
@@ -554,6 +555,7 @@ export default {
     'Play with Game Pass': 'Play with Game Pass',
     'Stream for free with ads': 'Stream for free with ads',
     'Get game': 'Get game',
+    'Load more': 'Load more',
     StreamForFreeWithAdsDesc:
       'For a limited time only, play select games for free with cloud gaming. Terms and session limits apply.',
     'Preview features': 'Preview features (Xbox Insider)',
