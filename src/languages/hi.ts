@@ -485,6 +485,10 @@ export default {
     'Play with Game Pass': 'Game Pass के साथ खेलें',
     'Stream for free with ads': 'विज्ञापनों के साथ मुफ्त में स्ट्रीम करें',
     'Get game': 'गेम प्राप्त करें',
+    PurchaseNoticeTitle: 'खरीद जानकारी',
+    PurchaseNoticeDesc:
+      'गेम की खरीद जारी रखने के लिए, कृपया अपने फ़ोन या पीसी से Xbox वेब खोलें',
+    Close: 'बंद करें',
     'Load more': 'और लोड करें',
     available: 'उपलब्ध',
     'Game available': 'गेम उपलब्ध',

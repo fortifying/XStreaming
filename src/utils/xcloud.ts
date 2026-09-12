@@ -285,6 +285,44 @@ export const getRegionDisplayInfo = (regionName: string) => {
   };
 };
 
+// Fast token offering check to instantly detect Free tier without network requests
+export const detectTokenTier = (xCloudToken?: any): string | undefined => {
+  if (!xCloudToken) return undefined;
+  const offering =
+    xCloudToken?.getOffering?.() ||
+    xCloudToken?.offering ||
+    (xCloudToken?.getDefaultRegion?.()?.baseUri?.includes('xgpuwebf2p')
+      ? 'xgpuwebf2p'
+      : undefined) ||
+    (xCloudToken?.data?.offeringSettings?.regions?.some?.((r: any) =>
+      r.baseUri?.includes('xgpuwebf2p'),
+    )
+      ? 'xgpuwebf2p'
+      : undefined);
+
+  if (offering === 'xgpuwebf2p') {
+    return 'Free';
+  }
+  return undefined;
+};
+
+// Cached account tier management with user isolation
+export const getCachedAccountTier = (userKey?: string): string => {
+  if (userKey) {
+    return storage.getString(`user.account_tier.${userKey}`) || '';
+  }
+  return '';
+};
+
+export const saveCachedAccountTier = (tier: string, userKey?: string) => {
+  if (!tier) return;
+  if (userKey) {
+    storage.set(`user.account_tier.${userKey}`, tier);
+    storage.set('user.account_tier_owner', userKey);
+  }
+  storage.set('user.account_tier', tier);
+};
+
 // Account tier detector from cloud titles (Free, Essential, Premium, Ultimate)
 export const detectAccountTier = (
   titleResults: any[],
@@ -300,29 +338,51 @@ export const detectAccountTier = (
       r.baseUri?.includes('xgpuwebf2p'),
     )
       ? 'xgpuwebf2p'
-      : undefined) ||
-    (xCloudToken?.data?.offeringSettings?.regions?.some?.((r: any) =>
-      r.baseUri?.includes('xgpuweb'),
-    )
-      ? 'xgpuweb'
       : undefined);
 
-  // If token is explicitly free-to-play, user has no active Game Pass subscription
   if (offering === 'xgpuwebf2p') {
     return 'Free';
   }
 
   if (!Array.isArray(titleResults) || titleResults.length === 0) {
-    return offering === 'xgpuweb' ? 'Ultimate' : 'Free';
+    return 'Free';
   }
 
   let detected = 'Free';
   let hasActiveSubscription = false;
 
   for (const item of titleResults) {
+    if (!item) continue;
+    const title = (item.ProductTitle || item.title || item.titleId || '').toLowerCase();
+    if (
+      isFreeWithAdsTitle(item) ||
+      title.includes('halo infinite') ||
+      title.includes('fortnite') ||
+      title.includes('brawlhalla') ||
+      title.includes('destiny') ||
+      title.includes('pubg') ||
+      title.includes('roblox') ||
+      title.includes('warframe') ||
+      title.includes('apex legends') ||
+      title.includes('fallout shelter') ||
+      title.includes('kartrider') ||
+      title.includes('world of tanks') ||
+      title.includes('warzone') ||
+      title.includes('the finals')
+    ) {
+      continue;
+    }
+
     const rawSubs =
       item.details?.userSubscriptions || item.userSubscriptions || [];
     const rawProgs = item.details?.userPrograms || item.userPrograms || [];
+    const hasEntitlement = item.details?.hasEntitlement ?? item.hasEntitlement;
+    const isFreeInStore = item.details?.isFreeInStore ?? item.isFreeInStore;
+
+    const rawPrograms =
+      hasEntitlement && !isFreeInStore
+        ? item.details?.programs || item.programs || []
+        : [];
 
     const subs = (Array.isArray(rawSubs) ? rawSubs : [rawSubs]).map((s: any) =>
       String(s || '').toUpperCase(),
@@ -330,8 +390,11 @@ export const detectAccountTier = (
     const progs = (Array.isArray(rawProgs) ? rawProgs : [rawProgs]).map(
       (p: any) => String(p || '').toUpperCase(),
     );
+    const progList = (
+      Array.isArray(rawPrograms) ? rawPrograms : [rawPrograms]
+    ).map((p: any) => String(p || '').toUpperCase());
 
-    const all = [...subs, ...progs];
+    const all = [...subs, ...progs, ...progList];
 
     if (
       all.some(
@@ -376,9 +439,6 @@ export const detectAccountTier = (
   }
 
   if (!hasActiveSubscription) {
-    if (offering === 'xgpuweb') {
-      return 'Ultimate';
-    }
     return 'Free';
   }
 

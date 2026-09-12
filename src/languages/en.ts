@@ -555,6 +555,10 @@ export default {
     'Play with Game Pass': 'Play with Game Pass',
     'Stream for free with ads': 'Stream for free with ads',
     'Get game': 'Get game',
+    PurchaseNoticeTitle: 'Purchase Information',
+    PurchaseNoticeDesc:
+      'To continue purchasing game, please open Xbox web using your Phone or PC',
+    Close: 'Close',
     'Load more': 'Load more',
     StreamForFreeWithAdsDesc:
       'For a limited time only, play select games for free with cloud gaming. Terms and session limits apply.',

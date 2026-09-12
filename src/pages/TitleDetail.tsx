@@ -11,7 +11,6 @@ import {
   ToastAndroid,
   useWindowDimensions,
   ActivityIndicator,
-  Modal as RNModal,
   StatusBar,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -26,7 +25,7 @@ import {
   useTheme,
 } from 'react-native-paper';
 import Spinner from '../components/Spinner';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { getSettings } from '../store/settingStore';
 import { getXcloudData, saveXcloudData } from '../store/xcloudStore';
 import {
@@ -40,7 +39,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { useGamepadNavigation } from '../utils/useGamepadNavigation';
 import { debugFactory } from '../utils/debug';
 import { storage } from '../store/mmkv';
-import { isFreeWithAdsTitle } from '../utils/xcloud';
+import { isFreeWithAdsTitle, getCachedAccountTier } from '../utils/xcloud';
 import games from '../mock/games.json';
 
 const { UsbRumbleManager, FullScreenManager, ShortcutManager } = NativeModules;
@@ -50,6 +49,108 @@ const log = debugFactory('TitleDetailScreen');
 const warnTitles: any = [];
 const webviewTitles: any = [];
 
+const STORE_GAMEPAD_INJECTED_JS = `
+(function() {
+  if (!document.getElementById('__gamepad_nav_styles')) {
+    var style = document.createElement('style');
+    style.id = '__gamepad_nav_styles';
+    style.innerHTML = [
+      '.xs-gamepad-active {',
+      '  outline: 3px solid #107C10 !important;',
+      '  outline-offset: 3px !important;',
+      '  box-shadow: 0 0 12px rgba(16, 124, 16, 0.8) !important;',
+      '  border-radius: 4px !important;',
+      '}'
+    ].join('\\n');
+    document.head.appendChild(style);
+  }
+
+  var focusedEl = null;
+
+  function getFocusables() {
+    var selectors = 'button, a[href], [role="button"], input, select, [tabindex="0"]';
+    var all = Array.from(document.querySelectorAll(selectors));
+    return all.filter(function(el) {
+      if (el.disabled || el.getAttribute('tabindex') === '-1') return false;
+      var rect = el.getBoundingClientRect();
+      return rect.width > 20 && rect.height > 15;
+    });
+  }
+
+  function applyFocus(el) {
+    if (focusedEl) {
+      focusedEl.classList.remove('xs-gamepad-active');
+    }
+    focusedEl = el;
+    if (el) {
+      el.classList.add('xs-gamepad-active');
+      if (typeof el.focus === 'function') {
+        el.focus({ preventScroll: true });
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  window.__gamepadNav = function(action) {
+    if (action === 'select') {
+      var target = focusedEl || document.activeElement;
+      if (target && typeof target.click === 'function') {
+        target.click();
+      }
+      return;
+    }
+
+    if (action === 'up' || action === 'down') {
+      var items = getFocusables();
+      if (items.length === 0) {
+        window.scrollBy({ top: action === 'down' ? 260 : -260, behavior: 'smooth' });
+        return;
+      }
+
+      var currIdx = focusedEl ? items.indexOf(focusedEl) : -1;
+      if (action === 'down') {
+        if (currIdx >= 0 && currIdx < items.length - 1) {
+          applyFocus(items[currIdx + 1]);
+        } else if (currIdx === items.length - 1) {
+          window.scrollBy({ top: 260, behavior: 'smooth' });
+        } else {
+          var primaryBtn = items.find(function(i) {
+            var text = (i.innerText || '').toLowerCase();
+            return text.includes('beli') || text.includes('buy') || text.includes('get');
+          }) || items[0];
+          applyFocus(primaryBtn);
+        }
+      } else {
+        if (currIdx > 0) {
+          applyFocus(items[currIdx - 1]);
+        } else if (currIdx === 0) {
+          window.scrollBy({ top: -260, behavior: 'smooth' });
+        } else {
+          applyFocus(items[0]);
+        }
+      }
+      return;
+    }
+
+    if (action === 'left' || action === 'right') {
+      window.scrollBy({ left: action === 'right' ? 120 : -120, behavior: 'smooth' });
+    }
+  };
+
+  setTimeout(function() {
+    var items = getFocusables();
+    var primaryBtn = items.find(function(i) {
+      var text = (i.innerText || '').toLowerCase();
+      return text.includes('beli') || text.includes('buy') || text.includes('get');
+    });
+    if (primaryBtn) {
+      applyFocus(primaryBtn);
+    }
+  }, 1000);
+})();
+true;
+`;
+
 function TitleDetail({ navigation, route }) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -57,6 +158,7 @@ function TitleDetail({ navigation, route }) {
   const primary = theme.colors.primary;
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const dispatch = useDispatch();
+  const authentication = useSelector((state: any) => state.authentication);
   const [titleItem, setTitleItem] = React.useState<any>(null);
   const [settings, setSettings] = React.useState<any>({});
   const [starTitles, setStarTitles] = React.useState<any>([]);
@@ -73,9 +175,16 @@ function TitleDetail({ navigation, route }) {
   const isScreenFocused = useIsFocused();
   const [focusedBtn, setFocusedBtn] = React.useState<'start' | 'buy' | 'back'>('start');
   const [showStoreModal, setShowStoreModal] = React.useState(false);
+  const [showPurchaseNotice, setShowPurchaseNotice] = React.useState(false);
   const [storeUrl, setStoreUrl] = React.useState('');
   const [storeCanGoBack, setStoreCanGoBack] = React.useState(false);
   const storeWebViewRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    navigation.setOptions({
+      headerShown: !showStoreModal,
+    });
+  }, [showStoreModal, navigation]);
 
   const isGameOwned = Boolean(
     titleItem?.details?.hasEntitlement || titleItem?.details?.isFreeInStore,
@@ -86,9 +195,31 @@ function TitleDetail({ navigation, route }) {
       !isGameOwned,
   );
 
+  const lastStoreBackRef = React.useRef(0);
+
+  const handleStoreBack = React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastStoreBackRef.current < 1200 || !storeCanGoBack) {
+      setShowStoreModal(false);
+    } else {
+      lastStoreBackRef.current = now;
+      if (storeWebViewRef.current) {
+        storeWebViewRef.current.goBack();
+      } else {
+        setShowStoreModal(false);
+      }
+    }
+  }, [storeCanGoBack]);
+
   useGamepadNavigation({
     enabled: isScreenFocused && !showUsbWarnModal && !!titleItem,
     onLeft: () => {
+      if (showStoreModal) {
+        storeWebViewRef.current?.injectJavaScript(
+          'window.__gamepadNav && window.__gamepadNav("left"); true;',
+        );
+        return;
+      }
       setFocusedBtn(prev => {
         if (prev === 'back') return isNotOwned ? 'buy' : 'start';
         if (prev === 'buy') return 'start';
@@ -96,6 +227,12 @@ function TitleDetail({ navigation, route }) {
       });
     },
     onRight: () => {
+      if (showStoreModal) {
+        storeWebViewRef.current?.injectJavaScript(
+          'window.__gamepadNav && window.__gamepadNav("right"); true;',
+        );
+        return;
+      }
       setFocusedBtn(prev => {
         if (prev === 'start') return isNotOwned ? 'buy' : 'back';
         if (prev === 'buy') return 'back';
@@ -103,6 +240,12 @@ function TitleDetail({ navigation, route }) {
       });
     },
     onUp: () => {
+      if (showStoreModal) {
+        storeWebViewRef.current?.injectJavaScript(
+          'window.__gamepadNav && window.__gamepadNav("up"); true;',
+        );
+        return;
+      }
       setFocusedBtn(prev => {
         if (prev === 'back') return isNotOwned ? 'buy' : 'start';
         if (prev === 'buy') return 'start';
@@ -110,6 +253,12 @@ function TitleDetail({ navigation, route }) {
       });
     },
     onDown: () => {
+      if (showStoreModal) {
+        storeWebViewRef.current?.injectJavaScript(
+          'window.__gamepadNav && window.__gamepadNav("down"); true;',
+        );
+        return;
+      }
       setFocusedBtn(prev => {
         if (prev === 'start') return isNotOwned ? 'buy' : 'back';
         if (prev === 'buy') return 'back';
@@ -117,6 +266,16 @@ function TitleDetail({ navigation, route }) {
       });
     },
     onSelect: () => {
+      if (showStoreModal) {
+        if (showPurchaseNotice) {
+          setShowPurchaseNotice(false);
+          return;
+        }
+        storeWebViewRef.current?.injectJavaScript(
+          'window.__gamepadNav && window.__gamepadNav("select"); true;',
+        );
+        return;
+      }
       if (focusedBtn === 'start') {
         handleStartGame();
       } else if (focusedBtn === 'buy' && isNotOwned) {
@@ -126,15 +285,34 @@ function TitleDetail({ navigation, route }) {
       }
     },
     onActionX: () => {
+      if (showStoreModal) {
+        if (showPurchaseNotice) {
+          setShowPurchaseNotice(false);
+          return;
+        }
+        storeWebViewRef.current?.injectJavaScript(
+          'window.scrollBy({ top: 350, behavior: "smooth" }); true;',
+        );
+        return;
+      }
       handleStartGame();
+    },
+    onActionY: () => {
+      if (showStoreModal) {
+        if (showPurchaseNotice) {
+          setShowPurchaseNotice(false);
+        }
+        setShowStoreModal(false);
+        return;
+      }
     },
     onBack: () => {
       if (showStoreModal) {
-        if (storeCanGoBack && storeWebViewRef.current) {
-          storeWebViewRef.current.goBack();
-        } else {
-          setShowStoreModal(false);
+        if (showPurchaseNotice) {
+          setShowPurchaseNotice(false);
+          return;
         }
+        handleStoreBack();
         return;
       }
       navigation.goBack();
@@ -376,6 +554,7 @@ function TitleDetail({ navigation, route }) {
     }
     if (url) {
       setStoreUrl(url);
+      setShowPurchaseNotice(true);
       setShowStoreModal(true);
     }
   };
@@ -438,9 +617,27 @@ function TitleDetail({ navigation, route }) {
     );
   };
 
+  const accountTier = React.useMemo(() => {
+    if (route.params?.accountTier) {
+      return route.params.accountTier;
+    }
+    const userKey =
+      authentication?._tokenStore?.getUserToken?.()?.data?.gamertag ||
+      authentication?._tokenStore?.getUserToken?.()?.data?.gamerpic ||
+      storage.getString('user.account_tier_owner') ||
+      '';
+    return (
+      (userKey ? getCachedAccountTier(userKey) : '') ||
+      storage.getString('user.account_tier') ||
+      'Free'
+    );
+  }, [route.params?.accountTier, authentication]);
+
+  const isFreeTier = !accountTier || accountTier === 'Free';
+
   const isFreeWithAds = React.useMemo(() => {
-    return isFreeWithAdsTitle(titleItem);
-  }, [titleItem]);
+    return isFreeTier && isFreeWithAdsTitle(titleItem);
+  }, [isFreeTier, titleItem]);
 
   const startButtonLabel = isFreeWithAds
     ? t('Start cloud game with ads')
@@ -456,17 +653,14 @@ function TitleDetail({ navigation, route }) {
       return null;
     }
     return (
-      <RNModal
-        visible={showStoreModal}
-        animationType="slide"
-        statusBarTranslucent={true}
-        onRequestClose={() => {
-          if (storeCanGoBack && storeWebViewRef.current) {
-            storeWebViewRef.current.goBack();
-          } else {
-            setShowStoreModal(false);
-          }
-        }}>
+      <View
+        style={[
+          styles.storeModalOverlay,
+          {
+            backgroundColor: theme.colors.background,
+            paddingTop: statusBarHeight,
+          },
+        ]}>
         <StatusBar
           barStyle={isLight ? 'dark-content' : 'light-content'}
           backgroundColor="transparent"
@@ -474,59 +668,78 @@ function TitleDetail({ navigation, route }) {
         />
         <View
           style={[
-            styles.storeModalContainer,
-            {
-              backgroundColor: theme.colors.background,
-              paddingTop: statusBarHeight,
-            },
+            styles.storeModalHeader,
+            { borderBottomColor: primary + '33' },
           ]}>
-          <View
-            style={[
-              styles.storeModalHeader,
-              { borderBottomColor: primary + '33' },
-            ]}>
-            <IconButton
-              icon="arrow-left"
-              size={24}
-              onPress={() => {
-                if (storeCanGoBack && storeWebViewRef.current) {
-                  storeWebViewRef.current.goBack();
-                } else {
-                  setShowStoreModal(false);
-                }
-              }}
-            />
-            <Text
-              variant="titleMedium"
-              numberOfLines={1}
-              style={styles.storeModalTitle}>
-              {titleItem?.ProductTitle || t('Get game')}
-            </Text>
-            <IconButton
-              icon="close"
-              size={24}
-              onPress={() => setShowStoreModal(false)}
-            />
-          </View>
-          <WebView
-            ref={storeWebViewRef}
-            source={{ uri: storeUrl }}
-            userAgent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
-            onNavigationStateChange={navState => {
-              setStoreCanGoBack(navState.canGoBack);
-            }}
-            renderLoading={() => (
-              <View style={styles.storeLoadingWrap}>
-                <ActivityIndicator size="large" color={primary} />
-              </View>
-            )}
-            style={styles.storeWebView}
+          <IconButton
+            icon="arrow-left"
+            size={24}
+            onPress={handleStoreBack}
+          />
+          <Text
+            variant="titleMedium"
+            numberOfLines={1}
+            style={styles.storeModalTitle}>
+            {titleItem?.ProductTitle || t('Get game')}
+          </Text>
+          <IconButton
+            icon="close"
+            size={24}
+            onPress={() => setShowStoreModal(false)}
           />
         </View>
-      </RNModal>
+        <WebView
+          ref={storeWebViewRef}
+          source={{ uri: storeUrl }}
+          userAgent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={true}
+          injectedJavaScript={STORE_GAMEPAD_INJECTED_JS}
+          onLoadEnd={() => {
+            storeWebViewRef.current?.injectJavaScript(STORE_GAMEPAD_INJECTED_JS);
+          }}
+          onNavigationStateChange={navState => {
+            setStoreCanGoBack(navState.canGoBack);
+          }}
+          renderLoading={() => (
+            <View style={styles.storeLoadingWrap}>
+              <ActivityIndicator size="large" color={primary} />
+            </View>
+          )}
+          style={styles.storeWebView}
+        />
+        {showPurchaseNotice && (
+          <View style={styles.purchaseNoticeOverlay}>
+            <Card style={styles.purchaseNoticeCard}>
+              <Card.Title
+                title={t('PurchaseNoticeTitle')}
+                titleStyle={{ fontWeight: 'bold' }}
+                left={(props: any) => (
+                  <IconButton
+                    {...props}
+                    icon="information-outline"
+                    iconColor={primary}
+                  />
+                )}
+              />
+              <Card.Content>
+                <Text variant="bodyMedium" style={styles.purchaseNoticeText}>
+                  {t('PurchaseNoticeDesc')}
+                </Text>
+              </Card.Content>
+              <Card.Actions>
+                <Button
+                  mode="contained"
+                  style={{ backgroundColor: primary }}
+                  onPress={() => setShowPurchaseNotice(false)}>
+                  {t('Close')}
+                </Button>
+              </Card.Actions>
+            </Card>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -611,7 +824,6 @@ function TitleDetail({ navigation, route }) {
       />
 
       {renderUsbWarningModal()}
-      {renderStoreModal()}
 
       {shortcutLoadFailed && (
         <View style={styles.errorWrap}>
@@ -738,6 +950,7 @@ function TitleDetail({ navigation, route }) {
           {renderActionBar()}
         </>
       )}
+      {renderStoreModal()}
     </View>
   );
 }
@@ -913,6 +1126,10 @@ const styles = StyleSheet.create({
   tvActionButtonTextPlain: {
     color: '#107C10',
   },
+  storeModalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+  },
   storeModalContainer: {
     flex: 1,
   },
@@ -936,6 +1153,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  purchaseNoticeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    zIndex: 10000,
+  },
+  purchaseNoticeCard: {
+    maxWidth: 480,
+    width: '100%',
+    borderRadius: 12,
+  },
+  purchaseNoticeText: {
+    lineHeight: 22,
+    marginVertical: 8,
   },
 });
 

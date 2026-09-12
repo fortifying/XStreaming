@@ -535,6 +535,10 @@ export default {
     'Play with Game Pass': 'Jogar com Game Pass',
     'Stream for free with ads': 'Transmitir grátis com anúncios',
     'Get game': 'Obter jogo',
+    PurchaseNoticeTitle: 'Informações de compra',
+    PurchaseNoticeDesc:
+      'Para continuar comprando o jogo, abra a página da Xbox pelo celular ou PC',
+    Close: 'Fechar',
     'Load more': 'Carregar mais',
     available: 'disponível',
     'Game available': 'Jogos disponíveis',
