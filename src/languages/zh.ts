@@ -526,6 +526,9 @@ export default {
     'Play with Game Pass': '畅玩 Game Pass',
     'Stream for free with ads': '观看广告免费畅玩',
     'Get game': '获取游戏',
+    PurchaseNoticeTitle: '购买提示',
+    PurchaseNoticeDesc: '如需继续购买游戏，请在手机或电脑上打开 Xbox 网页',
+    Close: '关闭',
     'Load more': '加载更多',
     StreamForFreeWithAdsDesc:
       '限时体验，通过云游戏免费游玩精选游戏。适用条款和单次会话时长限制。',

@@ -58,6 +58,9 @@ import {
   fetchSiglTitles,
   getRegionDisplayInfo,
   detectAccountTier,
+  detectTokenTier,
+  getCachedAccountTier,
+  saveCachedAccountTier,
   buildTitleLookupMap,
   resolveXboxGamertag,
 } from '../utils/xcloud';
@@ -911,7 +914,8 @@ function CloudScreen({ navigation, route }: any) {
   const currentLanguage = i18n.language;
 
   const initialCache = React.useMemo(() => {
-    const cached = getXcloudData();
+    const currentGtg = storage.getString('user.gamertag') || '';
+    const cached = getXcloudData(currentGtg);
     return cached && isxCloudDataValid(cached) ? cached : null;
   }, []);
 
@@ -973,11 +977,21 @@ function CloudScreen({ navigation, route }: any) {
     return storage.getString('user.gamerpic') || '';
   });
   const [accountTier, setAccountTier] = React.useState<string>(() => {
-    const cached = storage.getString('user.account_tier') || '';
+    const activeToken = effectiveXCloudToken || streamingTokens?.xCloudToken;
+    const directTier = detectTokenTier(activeToken);
+    if (directTier) return directTier;
+
+    const currentGtg =
+      storage.getString('user.gamertag') ||
+      '';
+    const cached = getCachedAccountTier(currentGtg);
     if (cached === 'Core') return 'Essential';
     if (cached === 'Standard') return 'Premium';
     if (cached === 'FREE' || cached === 'Free') return 'Free';
-    return cached;
+    if (cached === 'Ultimate' || cached === 'Essential' || cached === 'Premium') {
+      return cached;
+    }
+    return 'Free';
   });
 
   // Server region state
@@ -1065,6 +1079,39 @@ function CloudScreen({ navigation, route }: any) {
   const horizontalCardHeight = Math.round(horizontalCardWidth * 1.38);
   const pageSize = 12;
 
+  // Unique account identifier for caching and isolation
+  const userKey = React.useMemo(() => {
+    return (
+      webToken?.data?.DisplayClaims?.xui?.[0]?.xid ||
+      webToken?.data?.DisplayClaims?.xui?.[0]?.gtg ||
+      profile?.Gamertag ||
+      profile?.gamertag ||
+      fetchedGamertag ||
+      storage.getString('user.gamertag') ||
+      ''
+    );
+  }, [webToken, profile, fetchedGamertag]);
+
+  // Fast account switch & token offering sync to prevent stale tier display
+  React.useEffect(() => {
+    const activeToken = effectiveXCloudToken || streamingTokens?.xCloudToken;
+    const directTier = detectTokenTier(activeToken);
+    if (directTier) {
+      setAccountTier(directTier);
+      saveCachedAccountTier(directTier, userKey);
+      return;
+    }
+
+    if (userKey) {
+      const cached = getCachedAccountTier(userKey);
+      if (cached) {
+        setAccountTier(cached);
+        return;
+      }
+    }
+    setAccountTier('Free');
+  }, [effectiveXCloudToken, streamingTokens?.xCloudToken, userKey]);
+
   // Resolved user Gamertag
   const gamertag = React.useMemo(() => {
     return resolveXboxGamertag(
@@ -1102,10 +1149,9 @@ function CloudScreen({ navigation, route }: any) {
     if (accountTier === 'Essential' || accountTier === 'Premium')
       return accountTier;
     if (accountTier === 'Ultimate') {
-      if (offering && offering !== 'xgpuweb') return 'Free';
       return 'Ultimate';
     }
-    return offering === 'xgpuweb' ? 'Ultimate' : 'Free';
+    return 'Free';
   }, [accountTier, effectiveXCloudToken, streamingTokens?.xCloudToken]);
 
   const isFocused = useIsFocused();
@@ -1139,9 +1185,19 @@ function CloudScreen({ navigation, route }: any) {
     );
   }, [displayTier, accountTier]);
 
+  // Stream free with ads is strictly relevant ONLY for Free tier accounts.
+  // Tiers above Free (Ultimate, Premium, Essential) must never display this section,
+  // even if previewFeaturesEnabled (Xbox Insider) is turned on.
   const showFreeWithAds = React.useMemo(() => {
-    return isFreeTier || previewFeaturesEnabled;
-  }, [isFreeTier, previewFeaturesEnabled]);
+    return isFreeTier;
+  }, [isFreeTier]);
+
+  // Auto-reset category filter if currently on free_ads but user is not on Free tier
+  React.useEffect(() => {
+    if (!showFreeWithAds && filterCategory === 'free_ads') {
+      setFilterCategory('all');
+    }
+  }, [showFreeWithAds, filterCategory]);
 
   // Available server regions
   const availableRegions = React.useMemo(() => {
@@ -1276,22 +1332,28 @@ function CloudScreen({ navigation, route }: any) {
 
       const titleRes: any = await api.getTitles();
       if (!titleRes?.results?.length) {
+        const fallbackTier = detectAccountTier([], activeToken);
+        setAccountTier(fallbackTier);
+        saveCachedAccountTier(fallbackTier, userKey);
         if (!silent) setLoading(false);
         return;
       }
 
-      // Detect account tier (Free, Essential, Premium, Ultimate)
+      // Immediately detect and apply account tier from titleRes results (< 1ms)
+      // Do NOT block tier display on the long api.getGamePassProducts catalog fetch
       let tier = detectAccountTier(titleRes.results, activeToken);
+      setAccountTier(tier);
+      saveCachedAccountTier(tier, userKey);
 
       const rawTitles = await api.getGamePassProducts(titleRes.results);
       if (tier === 'Free' && rawTitles && rawTitles.length > 0) {
         const recheckTier = detectAccountTier(rawTitles, activeToken);
         if (recheckTier !== 'Free') {
           tier = recheckTier;
+          setAccountTier(tier);
+          saveCachedAccountTier(tier, userKey);
         }
       }
-      setAccountTier(tier);
-      storage.set('user.account_tier', tier);
       setTitles(rawTitles);
 
       const lookupMap = buildTitleLookupMap(rawTitles);
@@ -1356,18 +1418,21 @@ function CloudScreen({ navigation, route }: any) {
       }
 
       // Update cache
-      const cached = getXcloudData();
-      saveXcloudData({
-        ...cached,
-        titles: rawTitles,
-        playWithGamePassTitles: gpList,
-        newTitles: newList,
-        ubisoftTitles: ubiList,
-        streamYourOwnTitles: ownList,
-        leavingSoonTitles: leaveList,
-        freeWithAdsTitles: effectiveFreeAds,
-        recentTitles: recentList,
-      });
+      const cached = getXcloudData(userKey);
+      saveXcloudData(
+        {
+          ...cached,
+          titles: rawTitles,
+          playWithGamePassTitles: gpList,
+          newTitles: newList,
+          ubisoftTitles: ubiList,
+          streamYourOwnTitles: ownList,
+          leavingSoonTitles: leaveList,
+          freeWithAdsTitles: effectiveFreeAds,
+          recentTitles: recentList,
+        },
+        userKey,
+      );
 
       // Prefetch top images for instantaneous visual appearance
       const prefetchPool = [
@@ -1410,7 +1475,7 @@ function CloudScreen({ navigation, route }: any) {
     fetchUserProfile(curWebToken);
 
     if (!hasFetchedGamesRef.current) {
-      const cacheData = getXcloudData();
+      const cacheData = getXcloudData(userKey);
       if (cacheData && isxCloudDataValid(cacheData)) {
         log.info('Get xcloud data from cache');
         const {
@@ -1506,9 +1571,12 @@ function CloudScreen({ navigation, route }: any) {
 
   const handleViewDetail = React.useCallback(
     (titleItem: any) => {
-      navigation.navigate('TitleDetail', { titleItem });
+      navigation.navigate('TitleDetail', {
+        titleItem,
+        accountTier: displayTier,
+      });
     },
-    [navigation],
+    [navigation, displayTier],
   );
 
   const handleOpenSearch = () => {

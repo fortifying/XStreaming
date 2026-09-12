@@ -470,6 +470,10 @@ export default {
     'Play with Game Pass': 'Game Pass でプレイ',
     'Stream for free with ads': '広告付きで無料ストリーミング',
     'Get game': 'ゲームを入手',
+    PurchaseNoticeTitle: '購入について',
+    PurchaseNoticeDesc:
+      'ゲームの購入を続行するには、スマートフォンまたはPCからXboxウェブサイトを開いてください',
+    Close: '閉じる',
     'Load more': 'さらに読み込む',
     available: '本利用可能',
     'Game available': '本のゲームが利用可能',

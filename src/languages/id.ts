@@ -562,6 +562,10 @@ export default {
     'Stream for free with ads': 'Streaming gratis dengan iklan',
     'Start cloud game with ads': 'Mulai cloud game dengan iklan',
     'Get game': 'Dapatkan game',
+    PurchaseNoticeTitle: 'Informasi Pembelian',
+    PurchaseNoticeDesc:
+      'Untuk melanjutkan pembelian game, silakan buka web Xbox menggunakan HP atau PC Anda',
+    Close: 'Tutup',
     'Load more': 'Muat lebih banyak',
     StreamForFreeWithAdsDesc:
       'Hanya untuk waktu terbatas, mainkan game pilihan secara gratis melalui cloud gaming. Syarat dan batas sesi berlaku.',

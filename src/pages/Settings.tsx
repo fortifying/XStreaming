@@ -24,6 +24,7 @@ import {clearWebToken} from '../store/webTokenStore';
 import {clearXcloudData} from '../store/xcloudStore';
 import {clearConsolesData} from '../store/consolesStore';
 import {clearServerData} from '../store/serverStore';
+import {storage} from '../store/mmkv';
 
 import bases from '../common/settings/bases';
 import display from '../common/settings/display';
@@ -109,6 +110,12 @@ function SettingsScreen({navigation}) {
             clearServerData();
             authentication._tokenStore.clear();
             CookieManager.clearAll();
+            try {
+              storage.delete('user.account_tier');
+              storage.delete('user.account_tier_owner');
+              storage.delete('user.gamertag');
+              storage.delete('user.gamerpic');
+            } catch {}
             setTimeout(() => {
               RNRestart.restart();
             }, 1000);
